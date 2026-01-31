@@ -10,7 +10,7 @@ class Plotter:
         pass
 
     def plot_candle(
-        self, df: pl.DataFrame, symbol: str, resample: str = None, period: str = "1y"
+        self, df: pl.DataFrame, symbol: str, resample: str = "1d", period: str = "1y"
     ):
         """
         Plot interactive candlestick chart using Lightweight Charts.
@@ -52,9 +52,8 @@ class Plotter:
         # FIX 2: Sort by time (Critical for charts)
         pdf = pdf.sort_values("time")
 
-        # FIX 3: Ensure time is a date object for Daily charts.
-        # Strings can be misinterpreted by the chart library and fall back to epoch.
-        pdf["time"] = pd.to_datetime(pdf["time"]).dt.date
+        # FIX 3: Ensure time is datetime64[ns]; chart library assumes ns before /1e9.
+        pdf["time"] = pd.to_datetime(pdf["time"]).astype("datetime64[ns]")
 
         # 4. Configure Chart
         chart = Chart(
@@ -73,7 +72,7 @@ class Plotter:
         chart.set(pdf)
 
         # 5. Indicators (calculate in Pandas)
-        # Note: We need to handle potential small datasets
+        Note: We need to handle potential small datasets
         if len(pdf) > 50:
             sma50 = pdf["close"].rolling(window=50).mean()
             line50 = chart.create_line(name="SMA 50", color="rgba(255, 235, 59, 0.7)")

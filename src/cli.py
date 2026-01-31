@@ -14,6 +14,7 @@ store = ParquetStore()
 scanner_engine = ScannerEngine()
 plotter = Plotter()
 
+
 @app.command()
 def sync(symbols: List[str]):
     """
@@ -31,13 +32,14 @@ def sync(symbols: List[str]):
         symbol = symbol.upper()
         # For MVP, we fetch full history (default start 2000-01-01)
         # Optimization: Check last date in parquet and fetch only new data
-        
+
         df = client.fetch_daily_history(symbol)
         if df is not None:
             store.save_ticker_data(symbol, df)
             console.print(f"[green]Synced {symbol}[/green]")
         else:
             console.print(f"[red]Failed to fetch {symbol}[/red]")
+
 
 @app.command()
 def list_data():
@@ -46,17 +48,18 @@ def list_data():
     console.print(f"Found {len(tickers)} tickers locally:")
     console.print(", ".join(tickers))
 
+
 @app.command()
 def scan(
     min_price: float = typer.Option(None, help="Minimum Close Price"),
     min_volume: float = typer.Option(None, help="Minimum Volume"),
-    sort: str = typer.Option("symbol", help="Column to sort by")
+    sort: str = typer.Option("symbol", help="Column to sort by"),
 ):
     """
     Scan local data for stocks matching criteria.
     """
     console.print("[bold blue]Running scan...[/bold blue]")
-    
+
     try:
         results = scanner_engine.scan(min_price=min_price, min_volume=min_volume)
     except Exception as e:
@@ -69,7 +72,9 @@ def scan(
 
     # Sort results
     if sort in results.columns:
-        results = results.sort(sort, descending=True if sort in ["close", "volume"] else False)
+        results = results.sort(
+            sort, descending=True if sort in ["close", "volume"] else False
+        )
 
     # Display Table
     table = Table(title=f"Scan Results ({len(results)} matches)")
@@ -86,17 +91,22 @@ def scan(
             str(row["date"]),
             f"${row['close']:.2f}",
             f"{row['volume']:,}",
-            f"{row['sma_50']:.2f}" if row['sma_50'] else "-",
-            f"{row['sma_200']:.2f}" if row['sma_200'] else "-"
+            f"{row['sma_50']:.2f}" if row["sma_50"] else "-",
+            f"{row['sma_200']:.2f}" if row["sma_200"] else "-",
         )
 
     console.print(table)
 
+
 @app.command()
 def plot(
     ticker: str,
-    resample: str = typer.Option(None, help="Resample frequency (e.g., '1w', '1mo'). Default: Daily"),
-    period: str = typer.Option("1y", help="Lookback period (e.g., '1y', '6mo'). Default: '1y'")
+    resample: str = typer.Option(
+        "1d", help="Resample frequency (e.g., '1w', '1mo'). Default: Daily"
+    ),
+    period: str = typer.Option(
+        "1y", help="Lookback period (e.g., '1y', '6mo'). Default: '1y'"
+    ),
 ):
     """
     Plot a Candlestick chart for a given ticker.
@@ -107,7 +117,9 @@ def plot(
     # 1. Load data
     df = store.load_ticker_data(ticker)
     if df is None:
-        console.print(f"[red]No data found for {ticker}. Please run 'sync {ticker}' first.[/red]")
+        console.print(
+            f"[red]No data found for {ticker}. Please run 'sync {ticker}' first.[/red]"
+        )
         raise typer.Exit(code=1)
 
     # 2. Plot
@@ -117,11 +129,9 @@ def plot(
         console.print(f"[red]Error plotting {ticker}: {e}[/red]")
         raise typer.Exit(code=1)
 
+
 @app.command()
-def head(
-    ticker: str,
-    n: int = typer.Option(10, help="Number of rows to display")
-):
+def head(ticker: str, n: int = typer.Option(10, help="Number of rows to display")):
     """
     Show the first N rows of a ticker's parquet data in a readable table.
     """
@@ -142,6 +152,7 @@ def head(
         table.add_row(*[str(value) for value in row])
 
     console.print(table)
+
 
 if __name__ == "__main__":
     app()
