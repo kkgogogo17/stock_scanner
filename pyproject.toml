@@ -1,0 +1,17 @@
+[project]
+name = "us-stock-scanner"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "polars",
+    "requests",
+    "pyarrow",
+    "python-dotenv",
+    "typer",
+    "rich",
+    "mplfinance",
+    "pandas",
+    "lightweight-charts",
+]
