@@ -54,6 +54,65 @@ def calculate_rsi(
     return df.with_columns(rsi.alias(f"rsi_{period}"))
 
 
+def calculate_relative_volume(
+    df: pl.LazyFrame, period: int = 20, col_name: str = "volume"
+) -> pl.LazyFrame:
+    """
+    Calculate Relative Volume (RVOL).
+    RVOL = Volume / Average Volume (SMA of Volume)
+    """
+    # We calculate the rolling mean of volume first
+    avg_vol = pl.col(col_name).rolling_mean(window_size=period)
+    
+    return df.with_columns([
+        avg_vol.alias(f"avg_volume_{period}"),
+        (pl.col(col_name) / avg_vol).alias(f"rvol_{period}")
+    ])
+
+
+def calculate_atr(df: pl.LazyFrame, period: int = 14) -> pl.LazyFrame:
+    """
+    Calculate Average True Range (ATR).
+    TR = max(High - Low, |High - Previous Close|, |Low - Previous Close|)
+    """
+    prev_close = pl.col("close").shift(1)
+    
+    tr1 = pl.col("high") - pl.col("low")
+    tr2 = (pl.col("high") - prev_close).abs()
+    tr3 = (pl.col("low") - prev_close).abs()
+    
+    tr = pl.max_horizontal(tr1, tr2, tr3)
+    
+    # Wilder's smoothing is standard for ATR, but simple rolling mean is often used too.
+    # We'll use simple rolling mean for performance/simplicity in MVP unless precise Wilder is needed.
+    # To match standard TA libs better, we can use ewm_mean with com=period-1 (Wilder).
+    atr = tr.ewm_mean(com=period - 1, adjust=False)
+    
+    return df.with_columns(atr.alias(f"atr_{period}"))
+
+
+def calculate_adr(df: pl.LazyFrame, period: int = 20) -> pl.LazyFrame:
+    """
+    Calculate Average Daily Range (ADR) as a percentage.
+    Daily Range % = (High - Low) / Low * 100
+    ADR = Simple Moving Average of Daily Range %
+    """
+    daily_range_pct = (pl.col("high") - pl.col("low")) / pl.col("low") * 100
+    adr = daily_range_pct.rolling_mean(window_size=period)
+    
+    return df.with_columns(adr.alias(f"adr_{period}"))
+
+
+def calculate_rolling_extrema(df: pl.LazyFrame, period: int = 252) -> pl.LazyFrame:
+    """
+    Calculate rolling Min (Low) and Max (High) over a period (e.g. 52 weeks).
+    """
+    return df.with_columns([
+        pl.col("high").rolling_max(window_size=period).alias(f"high_{period}"),
+        pl.col("low").rolling_min(window_size=period).alias(f"low_{period}")
+    ])
+
+
 def add_common_indicators(lf: pl.LazyFrame) -> pl.LazyFrame:
     """
     Add a standard suite of indicators: SMA50, SMA200, RSI14.

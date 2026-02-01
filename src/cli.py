@@ -130,6 +130,9 @@ def list_data():
 def scan(
     min_price: float = typer.Option(None, help="Minimum Close Price"),
     min_volume: float = typer.Option(None, help="Minimum Volume"),
+    min_relative_volume: float = typer.Option(None, help="Minimum Relative Volume (RVOL)"),
+    min_adr: float = typer.Option(None, help="Minimum Average Daily Range (ADR %)"),
+    trend_template: bool = typer.Option(False, help="Filter by Minervini Trend Template"),
     sort: str = typer.Option("symbol", help="Column to sort by"),
 ):
     """
@@ -138,7 +141,13 @@ def scan(
     console.print("[bold blue]Running scan...[/bold blue]")
 
     try:
-        results = scanner_engine.scan(min_price=min_price, min_volume=min_volume)
+        results = scanner_engine.scan(
+            min_price=min_price, 
+            min_volume=min_volume,
+            min_relative_volume=min_relative_volume,
+            min_adr=min_adr,
+            trend_template=trend_template
+        )
     except Exception as e:
         console.print(f"[red]Error during scan: {e}[/red]")
         return
@@ -150,7 +159,7 @@ def scan(
     # Sort results
     if sort in results.columns:
         results = results.sort(
-            sort, descending=True if sort in ["close", "volume"] else False
+            sort, descending=True if sort in ["close", "volume", "rvol_20", "adr_20"] else False
         )
 
     # Display Table
@@ -159,6 +168,8 @@ def scan(
     table.add_column("Date", style="magenta")
     table.add_column("Close", justify="right", style="green")
     table.add_column("Volume", justify="right")
+    table.add_column("RVOL", justify="right")
+    table.add_column("ADR%", justify="right")
     table.add_column("SMA50", justify="right")
     table.add_column("SMA200", justify="right")
 
@@ -168,6 +179,8 @@ def scan(
             str(row["date"]),
             f"${row['close']:.2f}",
             f"{row['volume']:,}",
+            f"{row['rvol_20']:.2f}" if row.get("rvol_20") else "-",
+            f"{row['adr_20']:.2f}%" if row.get("adr_20") else "-",
             f"{row['sma_50']:.2f}" if row["sma_50"] else "-",
             f"{row['sma_200']:.2f}" if row["sma_200"] else "-",
         )
@@ -177,7 +190,7 @@ def scan(
 
 @app.command()
 def plot(
-    ticker: str,
+    tickers: List[str],
     resample: str = typer.Option(
         "1d", help="Resample frequency (e.g., '1w', '1mo'). Default: Daily"
     ),
@@ -186,24 +199,40 @@ def plot(
     ),
 ):
     """
-    Plot a Candlestick chart for a given ticker.
+    Plot Candlestick chart(s).
+    If multiple tickers are provided, they are shown as separate subcharts in one window.
+    Example: python main.py plot AAPL MSFT
     """
-    ticker = ticker.upper()
-    console.print(f"[bold blue]Plotting {ticker}...[/bold blue]")
+    if not tickers:
+        console.print("[red]Please provide at least one ticker.[/red]")
+        raise typer.Exit(code=1)
 
-    # 1. Load data
-    df = store.load_ticker_data(ticker)
-    if df is None:
-        console.print(
-            f"[red]No data found for {ticker}. Please run 'sync {ticker}' first.[/red]"
-        )
+    console.print(f"[bold blue]Plotting {', '.join(tickers)}...[/bold blue]")
+
+    ticker_data = []
+    
+    # 1. Load data for all tickers
+    for ticker in tickers:
+        ticker = ticker.upper()
+        try:
+            df = store.load_ticker_data(ticker)
+            ticker_data.append((ticker, df))
+        except FileNotFoundError:
+             console.print(
+                f"[yellow]No data found for {ticker}. Please run 'sync {ticker}' first. Skipping.[/yellow]"
+            )
+    
+    if not ticker_data:
+        console.print("[red]No valid data loaded for any provided tickers.[/red]")
         raise typer.Exit(code=1)
 
     # 2. Plot
     try:
-        plotter.plot_candle(df, ticker, resample=resample, period=period)
+        plotter.plot_candle(
+            ticker_data, resample=resample, period=period
+        )
     except Exception as e:
-        console.print(f"[red]Error plotting {ticker}: {e}[/red]")
+        console.print(f"[red]Error plotting: {e}[/red]")
         raise typer.Exit(code=1)
 
 
