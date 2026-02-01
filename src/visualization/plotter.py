@@ -10,7 +10,7 @@ class Plotter:
         pass
 
     def plot_candle(
-        self, df: pl.DataFrame, symbol: str, resample: str = "1d", period: str = "1y"
+        self, df: pl.DataFrame, symbol: str, resample: str = "1d", period: str | None = None
     ):
         """
         Plot interactive candlestick chart using Lightweight Charts.
@@ -72,7 +72,7 @@ class Plotter:
         chart.set(pdf)
 
         # 5. Indicators (calculate in Pandas)
-        Note: We need to handle potential small datasets
+        # Note: We need to handle potential small datasets
         if len(pdf) > 50:
             sma50 = pdf["close"].rolling(window=50).mean()
             line50 = chart.create_line(name="SMA 50", color="rgba(255, 235, 59, 0.7)")

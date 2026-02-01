@@ -1,7 +1,10 @@
 import typer
+import polars as pl
 from rich.console import Console
 from rich.progress import track
 from typing import List
+from pathlib import Path
+from datetime import timedelta
 from src.api.tiingo import TiingoClient
 from src.storage.parquet_store import ParquetStore
 from src.scanner.engine import ScannerEngine
@@ -13,6 +16,42 @@ console = Console()
 store = ParquetStore()
 scanner_engine = ScannerEngine()
 plotter = Plotter()
+
+TICKER_FILE = Path(__file__).resolve().parent / "data" / "tickers.csv"
+VOLUME_THRESHOLD = 150_000_000
+LOOKBACK_DAYS = 60
+
+
+def _load_ticker_universe() -> list[str]:
+    if not TICKER_FILE.exists():
+        console.print(f"[red]Ticker file not found: {TICKER_FILE}[/red]")
+        return []
+
+    tickers = []
+    for line in TICKER_FILE.read_text().splitlines():
+        symbol = line.strip().upper()
+        if not symbol or symbol.startswith("#"):
+            continue
+        tickers.append(symbol)
+
+    return tickers
+
+
+def _dollar_volume_last_2_months(df: pl.DataFrame) -> float:
+    if df.is_empty():
+        return 0.0
+
+    end_date = df["date"].max()
+    if end_date is None:
+        return 0.0
+
+    start_date = end_date - timedelta(days=LOOKBACK_DAYS)
+    recent = df.filter(pl.col("date") >= start_date)
+    if recent.is_empty():
+        return 0.0
+
+    total = recent.select((pl.col("close") * pl.col("volume")).sum()).item()
+    return float(total or 0.0)
 
 
 @app.command()
@@ -39,6 +78,44 @@ def sync(symbols: List[str]):
             console.print(f"[green]Synced {symbol}[/green]")
         else:
             console.print(f"[red]Failed to fetch {symbol}[/red]")
+
+
+@app.command()
+def sync_all():
+    """
+    Sync all tickers from the maintained universe, filtered by 2-month dollar volume.
+    """
+    try:
+        client = TiingoClient()
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        console.print("Please set TIINGO_API_KEY in .env file")
+        raise typer.Exit(code=1)
+
+    tickers = _load_ticker_universe()
+    if not tickers:
+        console.print("[yellow]No tickers found in the universe list.[/yellow]")
+        return
+
+    eligible = []
+    for symbol in track(tickers, description="Fetching universe..."):
+        df = client.fetch_daily_history(symbol)
+        if df is None or df.is_empty():
+            console.print(f"[red]Failed to fetch {symbol}[/red]")
+            continue
+
+        dollar_volume = _dollar_volume_last_2_months(df)
+        store.save_ticker_data(symbol, df)
+        if dollar_volume >= VOLUME_THRESHOLD:
+            eligible.append(symbol)
+            console.print(f"[green]Synced {symbol}[/green]")
+        else:
+            console.print(
+                f"[yellow]Synced {symbol} (below threshold: ${dollar_volume:,.0f})[/yellow]"
+            )
+
+    if not eligible:
+        console.print("[yellow]No tickers met the 2-month dollar volume threshold.[/yellow]")
 
 
 @app.command()
@@ -105,7 +182,7 @@ def plot(
         "1d", help="Resample frequency (e.g., '1w', '1mo'). Default: Daily"
     ),
     period: str = typer.Option(
-        "1y", help="Lookback period (e.g., '1y', '6mo'). Default: '1y'"
+        None, help="Lookback period (e.g., '1y', '6mo'). Omit for all data"
     ),
 ):
     """
