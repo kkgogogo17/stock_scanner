@@ -1,7 +1,7 @@
 import typer
 import polars as pl
 from rich.console import Console
-from rich.progress import track
+from rich.progress import track, Progress
 from typing import List
 from pathlib import Path
 from datetime import timedelta
@@ -19,8 +19,8 @@ from src.scanner.filters.gap import GapUpFilter
 from src.visualization.plotter import Plotter
 from src.scanner.recipe import RecipeManager
 from rich.table import Table
-from rich.progress import Progress
 import concurrent.futures
+import traceback
 
 app = typer.Typer()
 console = Console()

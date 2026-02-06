@@ -12,3 +12,11 @@ wheels/
 │ >                             
 
 data/
+
+# pycharm file
+.idea/misc.xml
+.idea/inspectionProfiles/profiles_settings.xml
+.idea/inspectionProfiles/Project_Default.xml
+.idea/vcs.xml
+.idea/workspace.xml
+us_stock_scanner.iml
