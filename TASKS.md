@@ -49,6 +49,7 @@ Last updated: 2026-02-05
 
 ### F. Testing
 
+- [x] (`done`) Add baseline characterization tests for existing scanner/filter behavior (`tests/test_scanner_engine.py`).
 - [ ] (`todo`) Create `tests/test_backtest_engine.py` for no-lookahead and fills.
 - [ ] (`todo`) Create `tests/test_costs_and_pnl.py` for commission/slippage accounting.
 - [ ] (`todo`) Create `tests/test_exits.py` for stop/trailing/time exits.
